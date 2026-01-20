@@ -111,6 +111,23 @@ class DnsPacket():
             ip_address = ".".join(str(b) for b in ip_bytes)
             self.answers.append(DnsRecord(domain_name, record_type, record_class, ttl, ip_address))
 
+    def add_answer(self, ip_address, ttl):
+        dns_question = self.questions[0]
+        domain_name, record_type, record_class = dns_question.domain_name, dns_question.record_type, dns_question.record_class
+        self.answers.append(DnsRecord(domain_name, record_type, record_class, ttl, ip_address))
+        self.header.acount += 1
+
+        
+    @staticmethod
+    def encode_domain_name(domain_name: str) -> bytes:
+        encoded_domain_name = b""
+        parts = domain_name.split(".") # split on dots
+        lengths = [len(part) for part in parts] # get length of part
+        for part, length in zip(parts, lengths):
+            encoded_domain_name += struct.pack("!B", length) + part.encode() 
+        encoded_domain_name += b"\x00"
+        return encoded_domain_name
+
     def extract_domain_name(self, pos):
         words = []
         jumped = False
