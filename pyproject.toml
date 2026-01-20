@@ -1,0 +1,10 @@
+[project]
+name = "toy-cdn"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "geoip2>=5.2.0",
+    "haversine>=2.9.0",
+]
