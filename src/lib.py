@@ -165,3 +165,22 @@ def build_dns_response(query: DnsQueryPacket, ip_address: str, ttl: int) -> byte
     response += answer.to_bytes()
 
     return response  
+
+def build_refused_response(query: DnsQueryPacket) -> bytes:
+    # RCODE is the low 4 bits of flags
+    # 5 = REFUSED, 4 = NOTIMP (not implemented)
+    flags = query.header.flags | 0x8000  # QR bit
+    flags = (flags & 0xFFF0) | 5  # set RCODE to REFUSED
+    
+    header = DnsHeader(
+        packet_id=query.header.packet_id,
+        flags=flags,
+        qcount=1,
+        acount=0,  # no answers
+        authcount=0,
+        addcount=0,
+        opcode=query.header.opcode,
+        rcode=5
+    )
+
+    return header.to_bytes() + query.question.to_bytes()

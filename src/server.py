@@ -1,8 +1,8 @@
 import geoip2.database
 import math
 import socket
-from haversine import haversine
-from lib import DnsQueryPacket, build_dns_response
+from haversine import haversine # type: ignore
+from lib import DnsQueryPacket, build_dns_response, build_refused_response
 from typing import NamedTuple, Tuple
 
 HOST = "127.0.0.1"
@@ -47,7 +47,16 @@ if __name__ == "__main__":
 
     while True:
         data, (client_ip, client_port) = sock.recvfrom(512)
-        query_packet = DnsQueryPacket(data)
+        try: 
+            query_packet = DnsQueryPacket(data)
+        except Exception: # don't respond if we receive malformed or non-DNS traffic
+            continue
+
+        # Refuse any queries other than those for an A record
+        if query_packet.question.record_type != 1:
+            response_packet = build_refused_response(query_packet) 
+            sock.sendto(response_packet, (client_ip, client_port))
+            continue
 
         try:
             client_coords = get_ip_coords(FAKE_CLIENT_IP, reader)
