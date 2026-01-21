@@ -2,7 +2,7 @@ import geoip2.database
 import math
 import socket
 from haversine import haversine
-from lib import DnsPacket
+from lib import DnsQueryPacket, build_dns_response
 from typing import NamedTuple, Tuple
 
 HOST = "127.0.0.1"
@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     while True:
         data, (client_ip, client_port) = sock.recvfrom(512)
-        query_packet = DnsPacket(data)
+        query_packet = DnsQueryPacket(data)
 
         try:
             client_coords = get_ip_coords(FAKE_CLIENT_IP, reader)
@@ -56,10 +56,9 @@ if __name__ == "__main__":
             print(f"Error while finding closest server for client {client_ip}: {e}")
             closest_server_ip = edge_servers[0].ip
 
-        query_packet.add_answer(closest_server_ip, 50)
-        query_packet.change_to_response()
-        print(query_packet.encode_packet())
-        sock.sendto(query_packet.encode_packet(), (client_ip, client_port))
+        response_packet = build_dns_response(query_packet, closest_server_ip, 50)
+        print(response_packet)
+        sock.sendto(response_packet, (client_ip, client_port))
 
 
 

@@ -1,23 +1,49 @@
-import random
 import struct
 from dataclasses import dataclass
 from enum import Enum
 
-# DNS packets are sent using UDP transport and are limited to 512 bytes
-# first: construct DNS header
-# ID	Packet Identifier	16 bits	A random identifier is assigned to query packets. Response packets must reply with the same id. This is needed to differentiate responses due to the stateless nature of UDP.
-# QR	Query Response	1 bit	0 for queries, 1 for responses.
-# OPCODE	Operation Code	4 bits	Typically always 0, see RFC1035 for details.
-# AA	Authoritative Answer	1 bit	Set to 1 if the responding server is authoritative - that is, it "owns" - the domain queried.
-# TC	Truncated Message	1 bit	Set to 1 if the message length exceeds 512 bytes. Traditionally a hint that the query can be reissued using TCP, for which the length limitation doesn't apply.
-# RD	Recursion Desired	1 bit	Set by the sender of the request if the server should attempt to resolve the query recursively if it does not have an answer readily available.
-# RA	Recursion Available	1 bit	Set by the server to indicate whether or not recursive queries are allowed.
-# Z	Reserved	3 bits	Originally reserved for later use, but now used for DNSSEC queries.
-# RCODE	Response Code	4 bits	Set by the server to indicate the status of the response, i.e. whether or not it was successful or failed, and in the latter case providing details about the cause of the failure.
-# QDCOUNT	Question Count	16 bits	The number of entries in the Question Section
-# ANCOUNT	Answer Count	16 bits	The number of entries in the Answer Section
-# NSCOUNT	Authority Count	16 bits	The number of entries in the Authority Section
-# ARCOUNT	Additional Count	16 bits	The number of entries in the Additional Section
+
+def encode_domain_name(domain_name: str) -> bytes:
+    encoded_domain_name = b""
+    parts = domain_name.split(".") # split on dots
+    lengths = [len(part) for part in parts] # get length of part
+    for part, length in zip(parts, lengths):
+        encoded_domain_name += struct.pack("!B", length) + part.encode() 
+    encoded_domain_name += b"\x00"
+    return encoded_domain_name
+
+def extract_domain_name(buffer, pos):
+    words = []
+    jumped = False
+    original_pos = pos
+    
+    while True:
+        length = buffer[pos]
+        
+        # Check if this is a compression pointer (top 2 bits set)
+        if length & 0xC0 == 0xC0:
+            # Calculate offset from the two bytes
+            offset = ((length & 0x3F) << 8) | buffer[pos + 1]
+            if not jumped:
+                original_pos = pos + 2  # Save where to continue after
+            pos = offset
+            jumped = True
+            continue
+        
+        if length == 0:
+            break
+            
+        pos += 1
+        word = buffer[pos:pos + length].decode()
+        words.append(word)
+        pos += length
+    
+    # Return position after the name (or after the pointer if we jumped)
+    end_pos = original_pos if jumped else pos + 1
+    return ".".join(words), end_pos
+
+def ip_to_bytes(ip_address: str) -> bytes:
+    return bytes((int(octet) for octet in ip_address.split(".")))
 
 @dataclass
 class DnsHeader():
@@ -30,11 +56,19 @@ class DnsHeader():
     opcode: int
     rcode: int
 
+    def to_bytes(self):
+        return struct.pack("!HHHHHH", self.packet_id, self.flags, self.qcount, \
+            self.acount, self.authcount, self.addcount)
+
 @dataclass
 class DnsQuestion():
     domain_name: str
     record_type: int
     record_class: int
+
+    def to_bytes(self):
+        return encode_domain_name(self.domain_name) + \
+            struct.pack("!HH", self.record_type, self.record_class)
 
 @dataclass
 class DnsRecord():
@@ -44,6 +78,11 @@ class DnsRecord():
     ttl: int 
     record_length: int
     ip_address: str # only applicable for A records
+
+    def to_bytes(self):
+        return encode_domain_name(self.domain_name) + \
+            struct.pack("!HHIH", self.record_type, self.record_class, self.ttl, self.record_length) + \
+            ip_to_bytes(self.ip_address)
 
 class ResultCode(Enum):
     NOERROR = 0
@@ -64,9 +103,8 @@ class RecordType(Enum):
 
 
 
-
 # This implementation ONLY handles A records for now!
-class DnsPacket():
+class DnsQueryPacket():
     def __init__(self, buffer):
         if len(buffer) > 512:
             raise Exception(f"Invalid length for DNS packet: {len(buffer)}")
@@ -82,135 +120,48 @@ class DnsPacket():
         self.header = DnsHeader(packet_id, flags, qcount, acount, authcount, addcount, opcode, rcode)
 
         # parse DNS question
-        self.questions = []
-        for _ in range(qcount):
-            domain_name, self.pos = self.extract_domain_name(self.pos)
+        # apparently it's possible to request multiple records in one go, but frowned upon in practice
+        # my implementation will not handle multiple questions   
+        # if qcount > 1:
+        #     get mad, maybe raise a formerror?
 
-            record_type, record_class = struct.unpack("!HH", self.buffer[self.pos: self.pos + 4])
-            self.pos += 4
+        domain_name, self.pos = extract_domain_name(self.buffer, self.pos)
 
-            self.questions.append(DnsQuestion(domain_name, record_type, record_class))
+        record_type, record_class = struct.unpack("!HH", self.buffer[self.pos: self.pos + 4])
+        self.pos += 4
 
-        # parse DNS answer
-        self.answers = []
-        for _ in range(acount):
-            domain_name, self.pos = self.extract_domain_name(self.pos)
-            record_type, record_class = struct.unpack("!HH", self.buffer[self.pos: self.pos + 4])
-            self.pos +=4 
-
-            ttl, = struct.unpack("!I", self.buffer[self.pos:self.pos + 4])
-            self.pos += 4
-
-            record_length, = struct.unpack("!H", self.buffer[self.pos:self.pos+2])
-            self.pos += 2
-
-            ip_bytes = self.buffer[self.pos:self.pos + record_length]
-            self.pos += record_length
-
-            ip_address = ".".join(str(b) for b in ip_bytes)
-            self.answers.append(DnsRecord(domain_name, record_type, record_class, ttl, record_length, ip_address))
-
-    @staticmethod
-    def ip_to_bytes(ip_address: str) -> bytes:
-        return bytes((int(octet) for octet in ip_address.split(".")))
-
-
-    def add_answer(self, ip_address: str, ttl: int):
-        dns_question = self.questions[0]
-        domain_name, record_type, record_class = dns_question.domain_name, dns_question.record_type, dns_question.record_class
-        self.answers.append(DnsRecord(domain_name, record_type, record_class, ttl, 4, ip_address))
-        self.header.acount += 1
-
-    def change_to_response(self):
-        # grab self.header.flags and change the qr bit to 1
-        self.header.flags |= 0x8000
-
-    def encode_header(self):
-        return struct.pack("!HHHHHH", self.header.packet_id, self.header.flags, self.header.qcount, \
-            self.header.acount, self.header.authcount, self.header.addcount)
-
-    def encode_questions(self): 
-        question_section_bytes = b""
-        for question in self.questions:
-            question_section_bytes += self.encode_domain_name(question.domain_name) + \
-                struct.pack("!HH", question.record_type, question.record_class)
-        return question_section_bytes
-
-    def encode_answers(self):
-        answer_section_bytes = b""
-        for answer in self.answers:
-            answer_section_bytes += self.encode_domain_name(answer.domain_name) + \
-                struct.pack("!HHIH", answer.record_type, answer.record_class, answer.ttl, answer.record_length) + \
-                self.ip_to_bytes(answer.ip_address)
-        return answer_section_bytes 
+        self.question = DnsQuestion(domain_name, record_type, record_class)
 
     def encode_packet(self):
-        return self.encode_header() + self.encode_questions() + self.encode_answers()
+        return self.header.to_bytes() + self.question.to_bytes()
 
 
+def build_dns_response(query: DnsQueryPacket, ip_address: str, ttl: int) -> bytes:
+    response = b""
+    header = DnsHeader(
+        packet_id=query.header.packet_id,
+        flags=query.header.flags | 0x8000,  # flip QR bit
+        qcount=1,
+        acount=1,
+        authcount=0,
+        addcount=0,
+        opcode=query.header.opcode,
+        rcode=0
+    )
+    response += header.to_bytes()
 
-        
-    @staticmethod
-    def encode_domain_name(domain_name: str) -> bytes:
-        encoded_domain_name = b""
-        parts = domain_name.split(".") # split on dots
-        lengths = [len(part) for part in parts] # get length of part
-        for part, length in zip(parts, lengths):
-            encoded_domain_name += struct.pack("!B", length) + part.encode() 
-        encoded_domain_name += b"\x00"
-        return encoded_domain_name
+    response += query.question.to_bytes()
 
-    def extract_domain_name(self, pos):
-        words = []
-        jumped = False
-        original_pos = pos
-        
-        while True:
-            length = self.buffer[pos]
-            
-            # Check if this is a compression pointer (top 2 bits set)
-            if length & 0xC0 == 0xC0:
-                # Calculate offset from the two bytes
-                offset = ((length & 0x3F) << 8) | self.buffer[pos + 1]
-                if not jumped:
-                    original_pos = pos + 2  # Save where to continue after
-                pos = offset
-                jumped = True
-                continue
-            
-            if length == 0:
-                break
-                
-            pos += 1
-            word = self.buffer[pos:pos + length].decode()
-            words.append(word)
-            pos += length
-        
-        # Return position after the name (or after the pointer if we jumped)
-        end_pos = original_pos if jumped else pos + 1
-        return ".".join(words), end_pos
-
-
-def encode_domain_name(domain_name: str) -> bytes:
-    encoded_domain_name = b""
-    parts = domain_name.split(".") # split on dots
-    lengths = [len(part) for part in parts] # get length of part
-    for part, length in zip(parts, lengths):
-        encoded_domain_name += struct.pack("!B", length) + part.encode() 
-    encoded_domain_name += b"\x00"
-    return encoded_domain_name
-
-def build_dns_packet(domain_name):
-    packet_id = random.randint(0, 65_535)
-    dns_header = struct.pack("!HHHHHH", 
-    packet_id,
-    0x0100, # flags: QR, OPCODE, AA, TC, RD, RA, Z, RCODE all packed together
-    1, # Question count
-    0, # Answer count
-    0, # Authority count
-    0 # Additional count
+    answer = DnsRecord(
+        domain_name = query.question.domain_name,
+        record_type = query.question.record_type,
+        record_class = query.question.record_class,
+        ttl = ttl,
+        # this assumes I'm only returning A records
+        record_length = 4,
+        ip_address = ip_address
     )
 
-    dns_question = encode_domain_name(domain_name) + struct.pack("!HH", 1, 1)
+    response += answer.to_bytes()
 
-    return dns_header + dns_question
+    return response  
