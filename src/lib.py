@@ -1,11 +1,9 @@
 import random
-import socket
 import struct
 from dataclasses import dataclass
 from enum import Enum
 
 # DNS packets are sent using UDP transport and are limited to 512 bytes
-
 # first: construct DNS header
 # ID	Packet Identifier	16 bits	A random identifier is assigned to query packets. Response packets must reply with the same id. This is needed to differentiate responses due to the stateless nature of UDP.
 # QR	Query Response	1 bit	0 for queries, 1 for responses.
@@ -44,6 +42,7 @@ class DnsRecord():
     record_type: int
     record_class: int
     ttl: int 
+    record_length: int
     ip_address: str # only applicable for A records
 
 class ResultCode(Enum):
@@ -59,7 +58,6 @@ class ResultCode(Enum):
             
 class RecordType(Enum):
     A = 1
-    CNAME = 5
 
     def __str__(self):
         return self.name
@@ -67,6 +65,7 @@ class RecordType(Enum):
 
 
 
+# This implementation ONLY handles A records for now!
 class DnsPacket():
     def __init__(self, buffer):
         if len(buffer) > 512:
@@ -109,13 +108,46 @@ class DnsPacket():
             self.pos += record_length
 
             ip_address = ".".join(str(b) for b in ip_bytes)
-            self.answers.append(DnsRecord(domain_name, record_type, record_class, ttl, ip_address))
+            self.answers.append(DnsRecord(domain_name, record_type, record_class, ttl, record_length, ip_address))
 
-    def add_answer(self, ip_address, ttl):
+    @staticmethod
+    def ip_to_bytes(ip_address: str) -> bytes:
+        return bytes((int(octet) for octet in ip_address.split(".")))
+
+
+    def add_answer(self, ip_address: str, ttl: int):
         dns_question = self.questions[0]
         domain_name, record_type, record_class = dns_question.domain_name, dns_question.record_type, dns_question.record_class
-        self.answers.append(DnsRecord(domain_name, record_type, record_class, ttl, ip_address))
+        self.answers.append(DnsRecord(domain_name, record_type, record_class, ttl, 4, ip_address))
         self.header.acount += 1
+
+    def change_to_response(self):
+        # grab self.header.flags and change the qr bit to 1
+        self.header.flags |= 0x8000
+
+    def encode_header(self):
+        return struct.pack("!HHHHHH", self.header.packet_id, self.header.flags, self.header.qcount, \
+            self.header.acount, self.header.authcount, self.header.addcount)
+
+    def encode_questions(self): 
+        question_section_bytes = b""
+        for question in self.questions:
+            question_section_bytes += self.encode_domain_name(question.domain_name) + \
+                struct.pack("!HH", question.record_type, question.record_class)
+        return question_section_bytes
+
+    def encode_answers(self):
+        answer_section_bytes = b""
+        for answer in self.answers:
+            answer_section_bytes += self.encode_domain_name(answer.domain_name) + \
+                struct.pack("!HHIH", answer.record_type, answer.record_class, answer.ttl, answer.record_length) + \
+                self.ip_to_bytes(answer.ip_address)
+        return answer_section_bytes 
+
+    def encode_packet(self):
+        return self.encode_header() + self.encode_questions() + self.encode_answers()
+
+
 
         
     @staticmethod

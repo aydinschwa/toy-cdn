@@ -26,34 +26,47 @@ def get_ip_coords(ip_addr: str, db_reader: geoip2.database.Reader) -> Tuple[floa
     if (not response.location.latitude) or (not response.location.longitude):
         raise Exception(f"Failed to retrieve coordinates for IP address {ip_addr}")
     return (response.location.latitude, response.location.longitude) 
+
+def find_closest_server(client_coords: Tuple[float, float], edge_servers: list[EdgeServer]) -> str:
+    closest_server_ip = "" 
+    minimum_distance = math.inf 
+    for server in edge_servers:
+        distance = haversine(client_coords, server.coords)
+        if distance < minimum_distance: 
+            closest_server_ip = server.ip 
+            minimum_distance = distance
+
+    return closest_server_ip 
     
 
 if __name__ == "__main__":
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
     sock.bind((HOST, PORT))
     reader = geoip2.database.Reader('../data/GeoLite2-City.mmdb')
-
     edge_servers = [EdgeServer(ip, get_ip_coords(ip, reader)) for ip in FAKE_EDGE_SERVER_IPS]
-
 
     while True:
         data, (client_ip, client_port) = sock.recvfrom(512)
-        dns_packet = DnsPacket(data)
+        query_packet = DnsPacket(data)
 
         try:
             client_coords = get_ip_coords(FAKE_CLIENT_IP, reader)
+            closest_server_ip = find_closest_server(client_coords, edge_servers)
         except Exception as e:
-            print(f"I should handle this by just returning a default server, {e}")
+            print(f"Error while finding closest server for client {client_ip}: {e}")
+            closest_server_ip = edge_servers[0].ip
 
-        closest_server_ip = "" 
-        minimum_distance = math.inf 
-        for server in edge_servers:
-            distance = haversine(client_coords, server.coords)
-            if distance < minimum_distance: 
-                closest_server_ip = server.ip 
-                minimum_distance = distance
+        query_packet.add_answer(closest_server_ip, 50)
+        query_packet.change_to_response()
+        print(query_packet.encode_packet())
+        sock.sendto(query_packet.encode_packet(), (client_ip, client_port))
 
-        print(closest_server_ip)
+
+
+
+
+        
+
 
 
 
