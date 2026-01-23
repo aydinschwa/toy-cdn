@@ -1,0 +1,28 @@
+#cloud-config
+
+write_files:
+  - path: /opt/config.json
+    content: |
+      ${config_json_content}
+    permissions: '0644'
+
+runcmd:
+  - |
+      set -euxo pipefail
+
+      echo "Waiting for apt locks..."
+      while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+            fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || \
+            fuser /var/cache/apt/archives/lock >/dev/null 2>&1; do
+        sleep 5
+      done
+
+      apt-get update -y
+      apt-get install -y docker.io
+
+      systemctl enable docker
+      systemctl start docker
+
+      docker run -d -p 53:53/udp \
+        -v /opt/config.json:/app/data/config.json \
+        aydinschwa/nameserver:latest
