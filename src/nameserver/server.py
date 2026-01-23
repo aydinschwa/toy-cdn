@@ -40,7 +40,7 @@ def find_closest_server(client_coords: Tuple[float, float], edge_servers: list[E
 if __name__ == "__main__":
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
     sock.bind((HOST, PORT))
-    reader = geoip2.database.Reader('../data/GeoLite2-City.mmdb')
+    reader = geoip2.database.Reader('data/GeoLite2-City.mmdb')
     edge_servers = [EdgeServer(ip, get_ip_coords(ip, reader)) for ip in EDGE_SERVER_IPS]
 
     while True:
