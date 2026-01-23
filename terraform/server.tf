@@ -1,6 +1,6 @@
 resource "digitalocean_droplet" "origin_server" {
     image = "ubuntu-24-04-x64"
-    name = "asap-site-server"
+    name = "origin-server"
     region = "syd1"
     size = "s-1vcpu-1gb"
     ssh_keys = [
@@ -38,18 +38,10 @@ resource "digitalocean_droplet" "edge_servers" {
     }
 }
 
-output "origin_server_ip" {
-    value = digitalocean_droplet.origin_server.ipv4_address
-}
-
-output "edge_server_ips" {
-    value = [ for v in digitalocean_droplet.edge_servers : v.ipv4_address] 
-}
-
 resource "digitalocean_droplet" "nameserver" {
     image = "ubuntu-24-04-x64"
-    name = "edge-server-${each.value}"
-    region = "${each.value}"
+    name = "nameserver"
+    region = "sfo3"
     size = "s-1vcpu-1gb"
     ssh_keys = [
         data.digitalocean_ssh_key.toy_cdn.id
@@ -65,8 +57,16 @@ resource "digitalocean_droplet" "nameserver" {
     provisioner "file" {
         content = jsonencode({
             origin_ip = digitalocean_droplet.origin_server.ipv4_address
-            edge_server_ips = [for v in digitalocean_droplet.edge_server_ips: v.ipv4_address]
+            edge_server_ips = [for v in digitalocean_droplet.edge_servers: v.ipv4_address]
         })
-        destination = "/opt/nameserver/config.json"
+        destination = "/opt/config.json"
+    }
+
+    provisioner "remote-exec" {
+        inline = [
+            "cloud-init status --wait || true", # apparently I need this to keep terraform from killing itself
+            "apt-get update && apt-get install -y docker.io",
+            "docker run -d -p 53:53/udp -v /opt/config.json:/app/data/config.json aydinschwa/nameserver:latest"
+        ]
     }
 }

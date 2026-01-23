@@ -10,7 +10,7 @@ HOST = "0.0.0.0"
 PORT = 53  # standard DNS port
 
 
-with open("config.json", "r") as f:
+with open("data/config.json", "r") as f:
     config = json.load(f)
     EDGE_SERVER_IPS = config["edge_server_ips"] 
     ORIGIN_IP = config["origin_ip"]
