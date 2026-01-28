@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CDN Cache Test</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 50px auto; text-align: center; }
+    #timing { font-size: 24px; margin: 20px 0; }
+    #image { max-width: 100%; }
+    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h1>CDN Cache Test</h1>
+  <div id="timing">Click to fetch image</div>
+  <button onclick="fetchImage()">Fetch Image</button>
+  <div>
+    <img id="image" />
+  </div>
+
+  <script>
+    async function fetchImage() {
+      const timing = document.getElementById('timing');
+      const img = document.getElementById('image');
+      
+      timing.textContent = 'Fetching...';
+      
+      const start = performance.now();
+      const response = await fetch('/image.jpg', { cache: 'default' });
+      const blob = await response.blob();
+      const end = performance.now();
+      
+      img.src = URL.createObjectURL(blob);
+      timing.textContent = `Fetched in ${(end - start).toFixed(0)}ms`;
+    }
+  </script>
+</body>
+</html>

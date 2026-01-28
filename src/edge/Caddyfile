@@ -1,4 +1,10 @@
+{
+    cache {
+        ttl 300s 
+    }
+}
 
-localhost:2080 {
-    reverse_proxy https://google.com 
+:2080 {
+    cache
+    reverse_proxy origin:80
 }
