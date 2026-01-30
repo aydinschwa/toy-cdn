@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
   <title>CDN Cache Test</title>
   <style>
     body { font-family: sans-serif; max-width: 600px; margin: 50px auto; text-align: center; }
@@ -21,16 +22,20 @@
     async function fetchImage() {
       const timing = document.getElementById('timing');
       const img = document.getElementById('image');
-      
+
+      img.style.display = 'none';
       timing.textContent = 'Fetching...';
       
       const start = performance.now();
-      const response = await fetch('/image.jpg', { cache: 'default' });
+      const response = await fetch('/image.jpg', { cache: 'no-store' });
       const blob = await response.blob();
+      img.style.display = 'block';
       const end = performance.now();
-      
+
+      const elapsed = end - start;
+      const emoji = elapsed < 1000 ? '🐇' : '🐢';
       img.src = URL.createObjectURL(blob);
-      timing.textContent = `Fetched in ${(end - start).toFixed(0)}ms`;
+      timing.textContent = `${emoji} Fetched in ${elapsed.toFixed(0)}ms`;
     }
   </script>
 </body>
