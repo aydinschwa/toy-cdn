@@ -1,11 +1,19 @@
+import time
 import http.server
 import socketserver
 
-PORT = 8000
+PORT = 9000
 
-Handler = http.server.SimpleHTTPRequestHandler
+class MyHandler(http.server.SimpleHTTPRequestHandler):
 
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
+    def end_headers(self) -> None:
+        self.send_header("Cache-Control", "max-age=600, public")
+        return super().end_headers()
+
+    def do_GET(self) -> None:
+        time.sleep(1)
+        return super().do_GET()
+
+with socketserver.TCPServer(("", PORT), MyHandler) as httpd:
     print(f"Serving at port {PORT}")
-    # Start the server and keep it running until you stop the script
     httpd.serve_forever()

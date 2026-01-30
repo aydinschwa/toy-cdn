@@ -8,3 +8,7 @@ run-edge:
       -v "./src/edge/Caddyfile:/etc/caddy/Caddyfile" \
       toy-cdn-edge
       
+run-origin:
+    docker run --rm -it \
+    -p 130:8000 \
+    toy-cdn-origin
