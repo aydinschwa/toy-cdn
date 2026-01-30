@@ -28,14 +28,18 @@
       
       const start = performance.now();
       const response = await fetch('/image.jpg', { cache: 'no-store' });
+      const cacheStatus = response.headers.get('Cache-Status');
+      const isHit = cacheStatus.includes('hit')
+      const ttlMatch = cacheStatus.match(/ttl=(\d+)/);
+      const ttl = ttlMatch ? ttlMatch[1] : null;
       const blob = await response.blob();
-      img.style.display = 'block';
       const end = performance.now();
 
-      const elapsed = end - start;
-      const emoji = elapsed < 1000 ? '🐇' : '🐢';
+      const emoji = isHit ? '🐇' : '🐢';
+      const cacheText = isHit ? `Cache hit (TTL is ${ttl}s)` : 'Cache miss';
+      timing.textContent = `${emoji} ${cacheText} — Fetched in ${(end-start).toFixed(0)}ms`;
       img.src = URL.createObjectURL(blob);
-      timing.textContent = `${emoji} Fetched in ${elapsed.toFixed(0)}ms`;
+      img.style.display = 'block';
     }
   </script>
 </body>

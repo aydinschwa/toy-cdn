@@ -1,0 +1,14 @@
+services:
+  origin:
+    build: src/origin/
+
+  edge:
+    build: src/edge/
+    ports: 
+      - "8080:8080"
+
+  nameserver:
+    build: src/nameserver/
+    ports: 
+      - "120:53/udp"
+

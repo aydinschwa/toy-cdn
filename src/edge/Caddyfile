@@ -1,10 +1,10 @@
 {
     cache {
-        ttl 300s 
+        ttl 30s 
     }
 }
 
-:2080 {
+:8080 {
     cache
-    reverse_proxy origin:80
+    reverse_proxy ${ORIGIN_HOST}:80
 }
