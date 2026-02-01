@@ -4,7 +4,12 @@
     }
 }
 
-:8080 {
+:80 {
+    cache
+    reverse_proxy ${ORIGIN_HOST}:80
+}
+
+cdn-test.space {
     cache
     reverse_proxy ${ORIGIN_HOST}:80
 }
