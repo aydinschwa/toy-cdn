@@ -184,3 +184,49 @@ def build_refused_response(query: DnsQueryPacket) -> bytes:
     )
 
     return header.to_bytes() + query.question.to_bytes()
+
+
+def build_empty_response(query: DnsQueryPacket) -> bytes:
+    response = b""
+    header = DnsHeader(
+        packet_id=query.header.packet_id,
+        flags=query.header.flags | 0x8000,  # flip QR bit
+        qcount=1,
+        acount=0,
+        authcount=0,
+        addcount=0,
+        opcode=query.header.opcode,
+        rcode=0
+    )
+    response += header.to_bytes()
+
+    response += query.question.to_bytes()
+
+    return response  
+
+
+def build_ns_response(query: DnsQueryPacket, ttl: int) -> bytes:
+    response = b""
+    header = DnsHeader(
+        packet_id=query.header.packet_id,
+        flags=query.header.flags | 0x8000,
+        qcount=1,
+        acount=2,
+        authcount=0,
+        addcount=0,
+        opcode=query.header.opcode,
+        rcode=0
+    )
+    response += header.to_bytes()
+    response += query.question.to_bytes()
+
+    # Build NS records manually
+    for ns in ["ns1.cdn-test.space", "ns2.cdn-test.space"]:
+        encoded_ns = encode_domain_name(ns)
+        response += encode_domain_name(query.question.domain_name)  # name
+        response += struct.pack("!HH", 2, 1)  # type=NS(2), class=IN(1)
+        response += struct.pack("!I", ttl)    # TTL
+        response += struct.pack("!H", len(encoded_ns))  # rdlength
+        response += encoded_ns                # rdata (the nameserver domain)
+
+    return response

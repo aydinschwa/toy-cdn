@@ -3,7 +3,7 @@ import json
 import math
 import socket
 from haversine import haversine # type: ignore
-from lib import DnsQueryPacket, build_dns_response, build_refused_response
+from lib import DnsQueryPacket, build_dns_response, build_ns_response, build_refused_response, build_empty_response 
 from typing import NamedTuple, Tuple
 
 HOST = "0.0.0.0"
@@ -50,26 +50,34 @@ if __name__ == "__main__":
         except Exception: # don't respond if we receive malformed or non-DNS traffic
             continue
 
-        # refuse any queries other than those for an A record
         # refuse any queries for a random domain I don't own
-        if (query_packet.question.record_type != 1) or \
-           (not query_packet.question.domain_name.endswith("cdn-test.space")):
+        if (not query_packet.question.domain_name.endswith("cdn-test.space")):
             response_packet = build_refused_response(query_packet) 
             sock.sendto(response_packet, (client_ip, client_port))
             continue
 
-        # return the origin server's IP if someone is requesting it directly
-        if query_packet.question.domain_name == "origin.cdn-test.space":
-            response_packet = build_dns_response(query_packet, ORIGIN_IP, 50)
+        # handle A record requests
+        if query_packet.question.record_type == 1:
+            # return the origin server's IP if someone is requesting it directly
+            if query_packet.question.domain_name == "origin.cdn-test.space":
+                response_packet = build_dns_response(query_packet, ORIGIN_IP, 50)
 
-        else:
-            try:
-                client_coords = get_ip_coords(client_ip, reader)
-                closest_server_ip = find_closest_server(client_coords, edge_servers)
-            except Exception as e:
-                print(f"Error while finding closest server for client {client_ip}: {e}")
-                closest_server_ip = edge_servers[0].ip
-            response_packet = build_dns_response(query_packet, closest_server_ip, 50)
+            else:
+                try:
+                    client_coords = get_ip_coords(client_ip, reader)
+                    closest_server_ip = find_closest_server(client_coords, edge_servers)
+                except Exception as e:
+                    print(f"Error while finding closest server for client {client_ip}: {e}")
+                    closest_server_ip = edge_servers[0].ip
+                response_packet = build_dns_response(query_packet, closest_server_ip, 50)
+
+        # handle NS record requests 
+        elif query_packet.question.record_type == 2:
+            response_packet = build_ns_response(query_packet, 50)
+
+        # handle AAAA record requests (just return empty answer)
+        elif query_packet.question.record_type == 28:
+            response_packet = build_empty_response(query_packet)
 
         sock.sendto(response_packet, (client_ip, client_port))
 

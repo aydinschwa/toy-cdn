@@ -25,4 +25,4 @@ runcmd:
 
       docker run -d -p 53:53/udp \
         -v /opt/config.json:/app/data/config.json \
-        aydinschwa/nameserver:latest
+        aydinschwa/toy-cdn-nameserver:latest
