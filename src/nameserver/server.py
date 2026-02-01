@@ -3,7 +3,7 @@ import json
 import math
 import socket
 from haversine import haversine # type: ignore
-from lib import DnsQueryPacket, build_dns_response, build_ns_response, build_refused_response, build_empty_response 
+from lib import DnsQueryPacket, build_dns_response, build_refused_response, build_empty_response 
 from typing import NamedTuple, Tuple
 
 HOST = "0.0.0.0"
@@ -71,12 +71,8 @@ if __name__ == "__main__":
                     closest_server_ip = edge_servers[0].ip
                 response_packet = build_dns_response(query_packet, closest_server_ip, 50)
 
-        # handle NS record requests 
-        elif query_packet.question.record_type == 2:
-            response_packet = build_ns_response(query_packet, 50)
-
-        # handle AAAA record requests (just return empty answer)
-        elif query_packet.question.record_type == 28:
+        # handle everything else with empty response
+        else:
             response_packet = build_empty_response(query_packet)
 
         sock.sendto(response_packet, (client_ip, client_port))
