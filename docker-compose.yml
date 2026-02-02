@@ -5,7 +5,10 @@ services:
   edge:
     build: src/edge/
     ports: 
-      - "8080:8080"
+      - "8080:80"
+    environment:
+      - ORIGIN_HOST=origin
+      - EDGE_REGION=sfo3
 
   nameserver:
     build: src/nameserver/

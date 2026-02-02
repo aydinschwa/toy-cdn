@@ -29,6 +29,7 @@
       const start = performance.now();
       const response = await fetch('/image.jpg', { cache: 'no-store' });
       const cacheStatus = response.headers.get('Cache-Status');
+      const edgeServer = response.headers.get('X-Edge-Server')
       const isHit = cacheStatus.includes('hit')
       const ttlMatch = cacheStatus.match(/ttl=(\d+)/);
       const ttl = ttlMatch ? ttlMatch[1] : null;
@@ -37,7 +38,9 @@
 
       const emoji = isHit ? '🐇' : '🐢';
       const cacheText = isHit ? `Cache hit (TTL is ${ttl}s)` : 'Cache miss';
-      timing.textContent = `${emoji} ${cacheText} — Fetched in ${(end-start).toFixed(0)}ms`;
+      
+      timing.innerHTML = `${emoji} ${cacheText} — Fetched in ${(end-start).toFixed(0)}ms` + 
+                         (edgeServer ? `<br>You're closest to the edge server in the ${edgeServer} region!` : '');
       img.src = URL.createObjectURL(blob);
       img.style.display = 'block';
     }

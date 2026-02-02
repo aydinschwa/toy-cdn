@@ -16,4 +16,5 @@ runcmd:
       systemctl start docker
       docker run -d -p 80:80 -p 443:443 \
         -e ORIGIN_HOST=${origin_ip} \
+        -e EDGE_REGION={edge_region} \
         aydinschwa/toy-cdn-edge:latest

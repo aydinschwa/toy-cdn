@@ -5,11 +5,13 @@
 }
 
 :80 {
+    header X-Edge-Server {$EDGE_REGION} 
     cache
     reverse_proxy {$ORIGIN_HOST}:80
 }
 
 cdn-test.space, www.cdn-test.space {
+    header X-Edge-Server {$EDGE_REGION} 
     cache
     reverse_proxy {$ORIGIN_HOST}:80
 }

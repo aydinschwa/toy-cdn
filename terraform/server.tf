@@ -11,7 +11,7 @@ resource "digitalocean_droplet" "origin_server" {
 
 variable "edge_server_regions" {
   type = set(string)
-  default = ["sfo3"]
+  default = ["sfo3", "lon1"]
 }
 
 resource "digitalocean_droplet" "edge_servers" {
@@ -42,6 +42,15 @@ resource "digitalocean_droplet" "nameserver" {
             origin_ip = digitalocean_droplet.origin_server.ipv4_address
             edge_server_ips = [for v in digitalocean_droplet.edge_servers: v.ipv4_address]
         })
-    })
+})
 
+}
+
+resource "digitalocean_reserved_ip" "nameserver" {
+  region = "sfo3"
+}
+
+resource "digitalocean_reserved_ip_assignment" "nameserver" {
+  ip_address = digitalocean_reserved_ip.nameserver.ip_address
+  droplet_id = digitalocean_droplet.nameserver.id
 }
