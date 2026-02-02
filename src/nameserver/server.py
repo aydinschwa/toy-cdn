@@ -1,5 +1,6 @@
 import geoip2.database
 import json
+import logging
 import math
 import socket
 from haversine import haversine # type: ignore
@@ -9,6 +10,8 @@ from typing import NamedTuple, Tuple
 HOST = "0.0.0.0"
 PORT = 53  # standard DNS port
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 with open("data/config.json", "r") as f:
     config = json.load(f)
@@ -50,16 +53,25 @@ if __name__ == "__main__":
         except Exception: # don't respond if we receive malformed or non-DNS traffic
             continue
 
+        domain_name = query_packet.question.domain_name
+        record_type = query_packet.question.record_type
+        logger.info(f"received query for {record_type} record on {domain_name}")
         # refuse any queries for a random domain I don't own
-        if (not query_packet.question.domain_name.endswith("cdn-test.space")):
+        # interesting tidbit: query likely will have randomized upper / lowercase
+        # need to lowercase then domain name for the string check because of this
+        # see DNS 0x20 bit encoding for more info.
+        # this was happening for Google and Cloudflare, but not Comcast, they don't
+        # care as much I guess
+        if (not domain_name.lower().endswith("cdn-test.space")):
+            logger.info(f"not authoritative for {domain_name}, refusing query")
             response_packet = build_refused_response(query_packet) 
             sock.sendto(response_packet, (client_ip, client_port))
             continue
 
         # handle A record requests
-        if query_packet.question.record_type == 1:
-            # return the origin server's IP if someone is requesting it directly
-            if query_packet.question.domain_name == "origin.cdn-test.space":
+        if record_type == 1:
+            # return the origin server's IP if someone is requesting it directly 
+            if query_packet.question.domain_name.lower() == "origin.cdn-test.space":
                 response_packet = build_dns_response(query_packet, ORIGIN_IP, 50)
 
             else:
@@ -76,13 +88,3 @@ if __name__ == "__main__":
             response_packet = build_empty_response(query_packet)
 
         sock.sendto(response_packet, (client_ip, client_port))
-
-
-
-
-
-        
-
-
-
-

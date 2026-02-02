@@ -9,7 +9,7 @@
     reverse_proxy {$ORIGIN_HOST}:80
 }
 
-cdn-test.space {
+cdn-test.space, www.cdn-test.space {
     cache
     reverse_proxy {$ORIGIN_HOST}:80
 }
