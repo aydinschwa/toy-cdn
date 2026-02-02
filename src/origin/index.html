@@ -98,12 +98,13 @@
     <h1>🌍 Toy CDN Demo</h1>
 
     <div class="subtitle">
-      This page routes a large static asset through a two-node edge network.
-      Each request reports the selected edge, cache status, TTL (if cached),
-      and measured client-side latency.
+      Click the button to fetch an image through a globally distributed CDN.
+      You'll see which edge server handled your request, whether it was cached,
+      and how long it took. Origin server is in Sydney, edge servers are in
+      San Francisco and London.
     </div>
 
-    <button onclick="fetchImage()">Request Asset</button>
+    <button onclick="fetchImage()">Fetch Image</button>
 
     <div id="timing"></div>
 
@@ -122,7 +123,7 @@
       timing.classList.remove('visible');
       img.classList.remove('visible');
 
-      timing.textContent = "→ requesting asset …";
+      timing.textContent = "→ Fetching…";
       timing.classList.add('visible');
 
       const start = performance.now();
