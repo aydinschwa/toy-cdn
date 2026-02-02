@@ -2,20 +2,116 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>CDN Cache Test</title>
+  <title>Toy CDN Demo</title>
   <style>
-    body { font-family: sans-serif; max-width: 600px; margin: 50px auto; text-align: center; }
-    #timing { font-size: 24px; margin: 20px 0; }
-    #image { max-width: 100%; }
-    button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0b1220;
+      color: #e5e7eb;
+      text-align: center;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 60px 20px 70px;
+    }
+
+    h1 {
+      font-size: 34px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #9ca3af;
+      font-size: 15px;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    button {
+      padding: 10px 22px;
+      font-size: 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.05);
+      color: #e5e7eb;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    button:hover {
+      background: rgba(255,255,255,0.1);
+    }
+
+    #timing {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 14px;
+      min-height: 60px;
+      margin: 26px 0 30px;
+      line-height: 1.6;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+    }
+
+    #timing.visible {
+      opacity: 1;
+    }
+
+    .hit { color: #22c55e; }
+    .miss { color: #ef4444; }
+
+    .divider {
+      width: 60px;
+      height: 1px;
+      background: rgba(255,255,255,0.15);
+      margin: 30px auto 40px;
+    }
+
+    .image-wrapper {
+      display: none;
+      width: 100%;
+      max-height: 520px;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+      background: #111827; /* subtle neutral fallback */
+    }
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+
+    img.visible {
+      opacity: 1;
+    }
   </style>
 </head>
 <body>
-  <h1>CDN Cache Test</h1>
-  <div id="timing">Click to fetch image</div>
-  <button onclick="fetchImage()">Fetch Image</button>
-  <div>
-    <img id="image" />
+  <div class="container">
+    <h1>🌍 Toy CDN Demo</h1>
+
+    <div class="subtitle">
+      This page routes a large static asset through a two-node edge network.
+      Each request reports the selected edge, cache status, TTL (if cached),
+      and measured client-side latency.
+    </div>
+
+    <button onclick="fetchImage()">Request Asset</button>
+
+    <div id="timing"></div>
+
+    <div class="divider"></div>
+
+    <div class="image-wrapper">
+      <img id="image" />
+    </div>
   </div>
 
   <script>
@@ -23,26 +119,40 @@
       const timing = document.getElementById('timing');
       const img = document.getElementById('image');
 
-      img.style.display = 'none';
-      timing.textContent = 'Fetching...';
-      
+      timing.classList.remove('visible');
+      img.classList.remove('visible');
+
+      timing.textContent = "→ requesting asset …";
+      timing.classList.add('visible');
+
       const start = performance.now();
       const response = await fetch('/image.jpg', { cache: 'no-store' });
-      const cacheStatus = response.headers.get('Cache-Status');
-      const edgeServer = response.headers.get('X-Edge-Server')
-      const isHit = cacheStatus.includes('hit')
-      const ttlMatch = cacheStatus.match(/ttl=(\d+)/);
-      const ttl = ttlMatch ? ttlMatch[1] : null;
+      const cacheStatus = response.headers.get('Cache-Status') || '';
+      const edgeServer = response.headers.get('X-Edge-Server');
       const blob = await response.blob();
       const end = performance.now();
 
-      const emoji = isHit ? '🐇' : '🐢';
-      const cacheText = isHit ? `Cache hit (TTL is ${ttl}s)` : 'Cache miss';
-      
-      timing.innerHTML = `${emoji} ${cacheText} — Fetched in ${(end-start).toFixed(0)}ms` + 
-                         (edgeServer ? `<br>You're closest to the edge server in the ${edgeServer} region!` : '');
+      const isHit = cacheStatus.includes('hit');
+      const ttlMatch = cacheStatus.match(/ttl=(\d+)/);
+      const ttl = ttlMatch ? ttlMatch[1] : null;
+
+      const statusLine = isHit
+        ? `<span class="hit">cache: HIT</span>${ttl ? ` (ttl=${ttl}s)` : ''}`
+        : `<span class="miss">cache: MISS</span>`;
+
+      timing.innerHTML = `
+        ${statusLine}<br>
+        latency: ${(end-start).toFixed(0)}ms<br>
+        edge: ${edgeServer || 'unknown'}
+      `;
+
+      timing.classList.add('visible');
+
       img.src = URL.createObjectURL(blob);
-      img.style.display = 'block';
+      img.onload = () => {
+        document.querySelector('.image-wrapper').style.display = 'block';
+        img.classList.add('visible');
+      };
     }
   </script>
 </body>
