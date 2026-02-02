@@ -16,18 +16,23 @@ def extract_domain_name(buffer, pos):
     words = []
     jumped = False
     original_pos = pos
+    jumps = 0
+    max_jumps = 5
     
     while True:
         length = buffer[pos]
         
         # Check if this is a compression pointer (top 2 bits set)
         if length & 0xC0 == 0xC0:
+            if jumps > max_jumps:
+                raise Exception("Too many compression pointer jumps")
             # Calculate offset from the two bytes
             offset = ((length & 0x3F) << 8) | buffer[pos + 1]
             if not jumped:
                 original_pos = pos + 2  # Save where to continue after
             pos = offset
             jumped = True
+            jumps += 1
             continue
         
         if length == 0:
